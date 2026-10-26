@@ -341,6 +341,38 @@ local TreeTabClass = newClass("TreeTab", "ControlHost", function(self, build)
 	self.jumpToNode = false
 	self.jumpToX = 0
 	self.jumpToY = 0
+
+	-- Floating Zoom Controls Overlay (bottom-right of tree view)
+	self.anchorZoomOverlay = new("Control", nil, { 0, 0, 0, 0 })
+	self.controls.zoomOut = new("ButtonControl", { "LEFT", self.anchorZoomOverlay, "LEFT" }, { 0, 0, 20, 20 }, "-", function()
+		self.viewer:Zoom(-1, self.lastTreeViewPort, true)
+	end)
+	self.controls.zoomOut.tooltipText = "Zoom out (or PageDown)"
+
+	self.controls.zoomSlider = new("SliderControl", { "LEFT", self.controls.zoomOut, "RIGHT" }, { 4, 0, 110, 20 }, function(val)
+		if not self.sliderUpdating and self.lastTreeViewPort then
+			self.viewer:SetZoom(val * 12, self.lastTreeViewPort, true)
+		end
+	end)
+	self.controls.zoomSlider.tooltipFunc = function(tooltip, val)
+		tooltip:Clear()
+		local level = val * 12
+		local zoomPct = math.floor((1.2 ^ level) / (1.2 ^ 3) * 100 + 0.5)
+		tooltip:AddLine(14, string.format("^7Zoom: ^8%d%% ^7(Level %.1f)", zoomPct, level))
+	end
+
+	self.controls.zoomIn = new("ButtonControl", { "LEFT", self.controls.zoomSlider, "RIGHT" }, { 4, 0, 20, 20 }, "+", function()
+		self.viewer:Zoom(1, self.lastTreeViewPort, true)
+	end)
+	self.controls.zoomIn.tooltipText = "Zoom in (or PageUp)"
+
+	self.controls.zoomReset = new("ButtonControl", { "LEFT", self.controls.zoomIn, "RIGHT" }, { 4, 0, 52, 20 }, function()
+		local zoomPct = math.floor((1.2 ^ self.viewer.zoomLevel) / (1.2 ^ 3) * 100 + 0.5)
+		return string.format("%d%%", zoomPct)
+	end, function()
+		self.viewer:SetZoom(3, self.lastTreeViewPort, true)
+	end)
+	self.controls.zoomReset.tooltipText = "Reset zoom to default 100% (Level 3)"
 end)
 
 function TreeTabClass:RemoveTattooFromNode(node)
@@ -383,8 +415,6 @@ function TreeTabClass:Draw(viewPort, inputEvents)
 			end
 		end
 	end
-	self:ProcessControlsInput(inputEvents, viewPort)
-
 	-- Determine positions if one line of controls doesn't fit in the screen width
 	local linesHeight = 24
 	local rightMargin = 10
@@ -438,6 +468,28 @@ function TreeTabClass:Draw(viewPort, inputEvents)
 	self.controls.specSelect.y = -bottomDrawerHeight - linesHeight
 
 	local treeViewPort = { x = viewPort.x, y = viewPort.y, width = viewPort.width, height = viewPort.height - (self.showConvert and 64 + bottomDrawerHeight + linesHeight or 32 + bottomDrawerHeight + linesHeight)}
+	self.lastTreeViewPort = treeViewPort
+
+	-- Position floating zoom overlay at bottom-right of tree view area
+	local overlayWidth = 214
+	local overlayHeight = 20
+	local overlayBoxWidth = overlayWidth + 12
+	local overlayBoxHeight = overlayHeight + 8
+	local overlayX = treeViewPort.x + treeViewPort.width - overlayBoxWidth - 12
+	local overlayY = treeViewPort.y + treeViewPort.height - overlayBoxHeight - 8
+	self.anchorZoomOverlay.x = overlayX + 6
+	self.anchorZoomOverlay.y = overlayY + 4
+	self.zoomOverlayBox = { x = overlayX, y = overlayY, width = overlayBoxWidth, height = overlayBoxHeight }
+
+	-- Sync zoom slider with viewer zoom level if user isn't dragging it
+	if not self.controls.zoomSlider.dragging then
+		self.sliderUpdating = true
+		self.controls.zoomSlider:SetVal(self.viewer.zoomLevel / 12)
+		self.sliderUpdating = false
+	end
+
+	self:ProcessControlsInput(inputEvents, viewPort)
+
 	if self.jumpToNode then
 		self.viewer:Focus(self.jumpToX, self.jumpToY, treeViewPort, self.build)
 		self.jumpToNode = false
@@ -479,6 +531,18 @@ function TreeTabClass:Draw(viewPort, inputEvents)
 	-- let white lines overwrite the black sections, regardless of showConvert
 	SetDrawColor(0.85, 0.85, 0.85)
 	DrawImage(nil, viewPort.x, viewPort.y + viewPort.height - (34 + bottomDrawerHeight + linesHeight), viewPort.width, 4)
+
+	-- Draw floating zoom controls background panel
+	if self.zoomOverlayBox then
+		local b = self.zoomOverlayBox
+		SetDrawColor(0.08, 0.08, 0.08, 0.85)
+		DrawImage(nil, b.x, b.y, b.width, b.height)
+		SetDrawColor(0.35, 0.35, 0.35, 0.9)
+		DrawImage(nil, b.x, b.y, b.width, 1)
+		DrawImage(nil, b.x, b.y + b.height - 1, b.width, 1)
+		DrawImage(nil, b.x, b.y, 1, b.height)
+		DrawImage(nil, b.x + b.width - 1, b.y, 1, b.height)
+	end
 
 	self:DrawControls(viewPort)
 end

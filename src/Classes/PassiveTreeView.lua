@@ -1259,19 +1259,51 @@ function PassiveTreeViewClass:DrawAsset(data, x, y, scale, isHalf)
 end
 
 -- Zoom the tree in or out
-function PassiveTreeViewClass:Zoom(level, viewPort)
+function PassiveTreeViewClass:Zoom(level, viewPort, useCenter)
 	-- Calculate new zoom level and zoom factor
-	self.zoomLevel = m_max(0, m_min(12, self.zoomLevel + level))
+	local newLevel = m_max(0, m_min(12, self.zoomLevel + level))
+	if newLevel == self.zoomLevel then
+		return
+	end
+	self.zoomLevel = newLevel
 	local oldZoom = self.zoom
 	self.zoom = 1.2 ^ self.zoomLevel
 
 	-- Adjust zoom center position so that the point on the tree that is currently under the mouse will remain under it
 	local factor = self.zoom / oldZoom
-	local cursorX, cursorY = GetCursorPos()
-	local relX = cursorX - viewPort.x - viewPort.width/2
-	local relY = cursorY - viewPort.y - viewPort.height/2
-	self.zoomX = relX + (self.zoomX - relX) * factor
-	self.zoomY = relY + (self.zoomY - relY) * factor
+	if useCenter or not viewPort then
+		self.zoomX = (self.zoomX or 0) * factor
+		self.zoomY = (self.zoomY or 0) * factor
+	else
+		local cursorX, cursorY = GetCursorPos()
+		local relX = cursorX - viewPort.x - viewPort.width/2
+		local relY = cursorY - viewPort.y - viewPort.height/2
+		self.zoomX = relX + ((self.zoomX or 0) - relX) * factor
+		self.zoomY = relY + ((self.zoomY or 0) - relY) * factor
+	end
+end
+
+-- Set the tree zoom level directly (supports continuous values and viewport-center zooming)
+function PassiveTreeViewClass:SetZoom(level, viewPort, useCenter)
+	level = m_max(0, m_min(12, level))
+	if level == self.zoomLevel then
+		return
+	end
+	local oldZoom = self.zoom
+	self.zoomLevel = level
+	self.zoom = 1.2 ^ self.zoomLevel
+
+	local factor = self.zoom / oldZoom
+	if useCenter or not viewPort then
+		self.zoomX = (self.zoomX or 0) * factor
+		self.zoomY = (self.zoomY or 0) * factor
+	else
+		local cursorX, cursorY = GetCursorPos()
+		local relX = cursorX - viewPort.x - viewPort.width/2
+		local relY = cursorY - viewPort.y - viewPort.height/2
+		self.zoomX = relX + ((self.zoomX or 0) - relX) * factor
+		self.zoomY = relY + ((self.zoomY or 0) - relY) * factor
+	end
 end
 
 function PassiveTreeViewClass:Focus(x, y, viewPort, build)
