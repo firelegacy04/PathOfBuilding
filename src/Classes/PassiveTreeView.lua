@@ -222,9 +222,9 @@ function PassiveTreeViewClass:Draw(build, viewPort, inputEvents)
 				if event.key == "RIGHTBUTTON" then
 					treeClick = "RIGHT"
 				elseif event.key == "WHEELUP" then
-					self:Zoom(IsKeyDown("SHIFT") and 3 or 1, viewPort)
+					self:HandleWheelZoom(1, viewPort)
 				elseif event.key == "WHEELDOWN" then
-					self:Zoom(IsKeyDown("SHIFT") and -3 or -1, viewPort)
+					self:HandleWheelZoom(-1, viewPort)
 				end	
 			end
 		end
@@ -1304,6 +1304,28 @@ function PassiveTreeViewClass:SetZoom(level, viewPort, useCenter)
 		self.zoomX = relX + ((self.zoomX or 0) - relX) * factor
 		self.zoomY = relY + ((self.zoomY or 0) - relY) * factor
 	end
+end
+
+-- Handle mouse wheel and trackpad zooming smoothly
+function PassiveTreeViewClass:HandleWheelZoom(direction, viewPort)
+	local now = GetTime()
+	local dt = now - (self.lastWheelTime or 0)
+	self.lastWheelTime = now
+
+	-- Detect if this is rapid/continuous scrolling (Mac trackpad / Magic Mouse stream)
+	-- versus isolated discrete notch clicks (physical mouse wheel).
+	local step
+	if dt >= 70 or self.lastWheelDir ~= direction then
+		-- Discrete notch or gesture start: moderate initial step
+		step = 0.5
+	else
+		-- High-frequency trackpad scroll event stream: smooth fractional delta
+		step = 0.08
+	end
+	self.lastWheelDir = direction
+
+	local shiftMult = IsKeyDown("SHIFT") and 2.5 or 1
+	self:Zoom(direction * step * shiftMult, viewPort)
 end
 
 function PassiveTreeViewClass:Focus(x, y, viewPort, build)
